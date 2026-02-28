@@ -329,6 +329,7 @@
       <button onclick="setTab('historico', this)">Histórico</button>
       <button onclick="setTab('produtos', this)">Produtos</button>
       <button onclick="setTab('clientes', this)">Clientes</button>
+      <button onclick="setTab('vendedores', this)">Vendedores</button>
     </nav>
   </header>
 
@@ -347,6 +348,13 @@
           <select id="pedido-cliente"><option value="">— Selecionar cliente —</option></select>
         </div>
         <button class="btn btn-outline btn-sm" onclick="abrirDrawer('drawer-cliente')">+ Novo cliente</button>
+      </div>
+
+      <div class="card">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Vendedor</label>
+          <select id="pedido-vendedor"><option value="">— Selecionar vendedor —</option></select>
+        </div>
       </div>
 
       <div class="card">
@@ -445,6 +453,15 @@
       <div id="lista-produtos"></div>
     </section>
 
+    <!-- ══ VENDEDORES ══ -->
+    <section id="tab-vendedores" class="section">
+      <div class="sec-header">
+        <div class="sec-title">Vendedores</div>
+        <button class="btn btn-primary btn-sm" onclick="abrirDrawer('drawer-vendedor')">+ Vendedor</button>
+      </div>
+      <div id="lista-vendedores"></div>
+    </section>
+
     <!-- ══ CLIENTES ══ -->
     <section id="tab-clientes" class="section">
       <div class="sec-header">
@@ -521,6 +538,21 @@
         <button class="btn btn-outline" onclick="fecharDrawer('drawer-importar')">Cancelar</button>
         <button class="btn btn-primary" onclick="confirmarImportacao()">Importar todos</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer Vendedor -->
+<div class="overlay" id="drawer-vendedor">
+  <div class="drawer">
+    <div class="drawer-handle"></div>
+    <div class="drawer-title" id="drawer-vendedor-title">Novo Vendedor</div>
+    <input type="hidden" id="vend-id" />
+    <div class="form-group"><label>Nome *</label><input id="vend-nome" placeholder="Ex: João Silva" /></div>
+    <div class="form-group"><label>Telefone</label><input id="vend-tel" type="tel" placeholder="(48) 99999-9999" /></div>
+    <div class="flex-end">
+      <button class="btn btn-outline" onclick="fecharDrawer('drawer-vendedor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarVendedor()">Salvar</button>
     </div>
   </div>
 </div>
@@ -673,11 +705,12 @@ async function init() {
   renderListaClientes();
   renderHistorico();
   popularSelectClientes();
+  popularSelectVendedores();
 }
 
 async function carregarDados() {
-  [produtos, clientes, pedidos] = await Promise.all([
-    dbGetAll('produtos'), dbGetAll('clientes'), dbGetAll('pedidos'),
+  [produtos, clientes, pedidos, vendedores] = await Promise.all([
+    dbGetAll('produtos'), dbGetAll('clientes'), dbGetAll('pedidos'), dbGetAll('vendedores'),
   ]);
   pedidos.sort((a,b) => (b._ts||0) - (a._ts||0));
 }
@@ -690,9 +723,10 @@ function setTab(name, btn) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'historico') renderHistorico();
-  if (name === 'produtos')  renderListaProdutos();
-  if (name === 'clientes')  renderListaClientes();
+  if (name === 'historico')  renderHistorico();
+  if (name === 'produtos')   renderListaProdutos();
+  if (name === 'clientes')   renderListaClientes();
+  if (name === 'vendedores') renderListaVendedores();
 }
 
 // ═══════════════════════════════════════
@@ -831,6 +865,7 @@ function limparPedido() {
   cart = {}; descontoAtual = 0;
   document.getElementById('pedido-cliente').value = '';
   document.getElementById('pedido-obs').value = '';
+  document.getElementById('pedido-vendedor').value = '';
   document.querySelectorAll('.desconto-tier').forEach(t => { t.classList.remove('active'); });
   renderProdutosPicker(); renderResumo();
 }
@@ -847,8 +882,11 @@ async function finalizarPedido() {
   const bruto = itensPedido.reduce((s,i) => s + i.subtotal, 0);
   const valorDesc = bruto * (descontoAtual / 100);
   const total = bruto - valorDesc;
+  const vendedorId = document.getElementById('pedido-vendedor').value;
+  const vendedor = vendedores.find(v => v.id === vendedorId);
   await dbAdd('pedidos', {
     clienteId, clienteNome: cliente.nome,
+    vendedorId: vendedorId||'', vendedorNome: vendedor?.nome||'',
     itens: itensPedido, bruto, desconto: descontoAtual, valorDesconto: valorDesc, total,
     obs: document.getElementById('pedido-obs').value,
     pagamento: document.getElementById('pedido-pagamento').value,
@@ -1008,6 +1046,70 @@ async function confirmarImportacao() {
 }
 
 // ═══════════════════════════════════════
+//  VENDEDORES
+// ═══════════════════════════════════════
+let vendedores = [];
+
+function popularSelectVendedores() {
+  const sel = document.getElementById('pedido-vendedor');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Selecionar vendedor —</option>' +
+    vendedores.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function renderListaVendedores() {
+  const el = document.getElementById('lista-vendedores');
+  if (!vendedores.length) {
+    el.innerHTML = `<div class="empty"><div class="icon">🧑‍💼</div><p>Nenhum vendedor cadastrado.</p></div>`;
+    return;
+  }
+  el.innerHTML = vendedores.map(v => `
+    <div class="list-item">
+      <div class="info">
+        <div class="name">${v.nome}</div>
+        <div class="sub">${v.tel||''}</div>
+      </div>
+      <div class="actions">
+        <button class="btn-icon" onclick="editarVendedor('${v.id}');event.stopPropagation()">✏️</button>
+        <button class="btn-icon" onclick="excluirVendedor('${v.id}');event.stopPropagation()">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function editarVendedor(id) {
+  const v = vendedores.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('drawer-vendedor-title').textContent = 'Editar Vendedor';
+  document.getElementById('vend-id').value = v.id;
+  document.getElementById('vend-nome').value = v.nome||'';
+  document.getElementById('vend-tel').value = v.tel||'';
+  abrirDrawer('drawer-vendedor');
+}
+
+async function salvarVendedor() {
+  const nome = document.getElementById('vend-nome').value.trim();
+  if (!nome) { toast('Informe o nome do vendedor'); return; }
+  const data = { nome, tel: document.getElementById('vend-tel').value.trim() };
+  const id = document.getElementById('vend-id').value;
+  if (id) { await dbUpdate('vendedores', id, data); toast('Vendedor atualizado'); }
+  else    { await dbAdd('vendedores', data); toast('Vendedor salvo'); }
+  vendedores = await dbGetAll('vendedores');
+  fecharDrawer('drawer-vendedor');
+  renderListaVendedores();
+  popularSelectVendedores();
+}
+
+async function excluirVendedor(id) {
+  if (!confirm('Excluir este vendedor?')) return;
+  await dbDelete('vendedores', id);
+  vendedores = vendedores.filter(x => x.id !== id);
+  renderListaVendedores();
+  popularSelectVendedores();
+  toast('Vendedor removido');
+}
+
+// ═══════════════════════════════════════
 //  CLIENTES
 // ═══════════════════════════════════════
 function popularSelectClientes() {
@@ -1092,7 +1194,7 @@ function renderHistorico() {
     const dt = p.data ? new Date(p.data).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="order-card" onclick="abrirPedidoDet('${p.id}')">
       <div class="order-header">
-        <div><div class="order-client">${p.clienteNome||'—'}</div><div class="order-id">${dt}</div></div>
+        <div><div class="order-client">${p.clienteNome||'—'}</div><div class="order-id">${dt}${p.vendedorNome ? ' · ' + p.vendedorNome : ''}</div></div>
         <div style="display:flex;gap:6px;align-items:center;">
           ${p.desconto ? `<span class="badge badge-discount">-${p.desconto}%</span>` : ''}
           <span class="badge badge-white">${p.pagamento||'—'}</span>
@@ -1126,8 +1228,9 @@ function abrirPedidoDet(id) {
     <div class="card">
       <div class="form-row">
         <div><label>Pagamento</label><p>${p.pagamento||'—'}</p></div>
-        <div><label>Status</label><span class="badge badge-success">${p.status||'finalizado'}</span></div>
+        <div><label>Vendedor</label><p>${p.vendedorNome||'—'}</p></div>
       </div>
+      <div style="margin-top:8px;"><label>Status</label><span class="badge badge-success">${p.status||'finalizado'}</span></div>
       ${p.obs ? `<hr class="divider"/><label>Obs.</label><p style="font-size:.85rem;margin-top:4px;">${p.obs}</p>` : ''}
     </div>`;
   abrirDrawer('drawer-pedido-det');
@@ -1166,6 +1269,7 @@ function gerarImpressao(p) {
   <h1>SAINT GERMAIN</h1>
   <div class="sub">Pedido de Venda · ${dt}</div>
   <p><strong>Cliente:</strong> ${p.clienteNome}</p>
+  ${p.vendedorNome ? `<p><strong>Vendedor:</strong> ${p.vendedorNome}</p>` : ''}
   <p><strong>Pagamento:</strong> ${p.pagamento||'—'}</p>
   ${p.obs?`<p><strong>Obs.:</strong> ${p.obs}</p>`:''}
   <br/>
@@ -1177,11 +1281,12 @@ function gerarImpressao(p) {
 }
 
 function exportarPedidos() {
-  const linhas = [['Data','Cliente','Produtos','Subtotal Bruto','Desconto %','Valor Desconto','Total','Pagamento','Obs']];
+  const linhas = [['Data','Cliente','Vendedor','Produtos','Subtotal Bruto','Desconto %','Valor Desconto','Total','Pagamento','Obs']];
   pedidos.forEach(p => {
     linhas.push([
       p.data ? new Date(p.data).toLocaleDateString('pt-BR') : '',
       p.clienteNome||'',
+      p.vendedorNome||'',
       (p.itens||[]).map(i=>`${i.nome} x${i.qty}`).join('; '),
       (p.bruto||p.total||0).toFixed(2),
       (p.desconto||0)+'%',
@@ -1201,6 +1306,11 @@ function exportarPedidos() {
 //  DRAWERS
 // ═══════════════════════════════════════
 function abrirDrawer(id) {
+  if (id === 'drawer-vendedor') {
+    document.getElementById('drawer-vendedor-title').textContent = 'Novo Vendedor';
+    document.getElementById('vend-id').value = '';
+    ['vend-nome','vend-tel'].forEach(f => document.getElementById(f).value='');
+  }
   if (id === 'drawer-cliente') {
     document.getElementById('drawer-cliente-title').textContent = 'Novo Cliente';
     document.getElementById('cli-id').value = '';
