@@ -343,21 +343,6 @@
       </div>
 
       <div class="card">
-        <div class="form-group" style="margin-bottom:8px;">
-          <label>Cliente</label>
-          <select id="pedido-cliente"><option value="">— Selecionar cliente —</option></select>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="abrirDrawer('drawer-cliente')">+ Novo cliente</button>
-      </div>
-
-      <div class="card">
-        <div class="form-group" style="margin-bottom:0;">
-          <label>Vendedor</label>
-          <select id="pedido-vendedor"><option value="">— Selecionar vendedor —</option></select>
-        </div>
-      </div>
-
-      <div class="card">
         <label style="margin-bottom:10px;">Produtos</label>
         <div class="search-wrap mb-8">
           <span class="search-icon">🔍</span>
@@ -405,6 +390,18 @@
           <span class="label">Total</span>
           <span class="value" id="resumo-total-val">R$ 0,00</span>
         </div>
+        <hr class="divider" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cliente *</label>
+            <select id="pedido-cliente"><option value="">— Selecionar —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Vendedor *</label>
+            <select id="pedido-vendedor"><option value="">— Selecionar —</option></select>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm mb-8" onclick="abrirDrawer('drawer-cliente')" style="margin-top:-4px;">+ Novo cliente</button>
         <div class="form-group mt-8">
           <label>Condição de Pagamento</label>
           <select id="pedido-pagamento">
@@ -871,9 +868,11 @@ function limparPedido() {
 }
 
 async function finalizarPedido() {
+  if (!Object.keys(cart).length) { toast('Adicione ao menos um produto'); return; }
   const clienteId = document.getElementById('pedido-cliente').value;
   if (!clienteId) { toast('Selecione um cliente'); return; }
-  if (!Object.keys(cart).length) { toast('Adicione ao menos um produto'); return; }
+  const vendedorId = document.getElementById('pedido-vendedor').value;
+  if (!vendedorId) { toast('Selecione um vendedor'); return; }
   const cliente = clientes.find(c => c.id === clienteId);
   const itensPedido = Object.entries(cart).map(([id,qty]) => {
     const p = produtos.find(x => x.id === id);
@@ -882,7 +881,6 @@ async function finalizarPedido() {
   const bruto = itensPedido.reduce((s,i) => s + i.subtotal, 0);
   const valorDesc = bruto * (descontoAtual / 100);
   const total = bruto - valorDesc;
-  const vendedorId = document.getElementById('pedido-vendedor').value;
   const vendedor = vendedores.find(v => v.id === vendedorId);
   await dbAdd('pedidos', {
     clienteId, clienteNome: cliente.nome,
