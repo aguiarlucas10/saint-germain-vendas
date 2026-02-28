@@ -297,9 +297,57 @@
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── LOGIN ── */
+    #login-modal {
+      position: fixed; inset: 0; background: #000;
+      z-index: 600; display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    #login-modal .modal-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 32px 24px; max-width: 360px; width: 100%;
+    }
+    #login-modal h2 { font-size: 1.1rem; letter-spacing: 0.1em; margin-bottom: 4px; }
+    #login-modal .subtitle { font-size: 0.8rem; color: var(--muted); margin-bottom: 24px; }
+    #login-modal .form-group { margin-bottom: 12px; }
+    #login-error { color: var(--danger); font-size: 0.78rem; margin-top: 8px; min-height: 18px; text-align: center; }
+
+    /* User badge in header */
+    .user-badge {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.75rem; color: var(--muted); cursor: pointer;
+    }
+    .user-badge:hover { color: var(--text); }
+    .user-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; color: var(--text);
+    }
   </style>
 </head>
 <body>
+
+<!-- ════ LOGIN MODAL ════ -->
+<div id="login-modal">
+  <div class="modal-box">
+    <h2>SAINT GERMAIN</h2>
+    <p class="subtitle">Faça login para continuar</p>
+    <div class="form-group">
+      <label>Usuário</label>
+      <input id="login-user" placeholder="seu usuário" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label>Senha</label>
+      <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') fazerLogin()" />
+    </div>
+    <div id="login-error"></div>
+    <div class="flex-end" style="margin-top:16px;">
+      <button class="btn btn-primary btn-full" onclick="fazerLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ════ SETUP MODAL ════ -->
 <div id="setup-modal">
@@ -327,10 +375,14 @@
     <nav>
       <button class="active" onclick="setTab('pedido', this)">Pedido</button>
       <button onclick="setTab('historico', this)">Histórico</button>
-      <button onclick="setTab('produtos', this)">Produtos</button>
+      <button class="admin-only" onclick="setTab('produtos', this)">Produtos</button>
       <button onclick="setTab('clientes', this)">Clientes</button>
-      <button onclick="setTab('vendedores', this)">Vendedores</button>
+      <button class="admin-only" onclick="setTab('vendedores', this)">Vendedores</button>
     </nav>
+    <div class="user-badge" onclick="fazerLogout()" title="Sair">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <span id="user-label"></span>
+    </div>
   </header>
 
   <main>
@@ -565,7 +617,10 @@
       <div class="form-group"><label>CNPJ / CPF</label><input id="cli-doc" placeholder="00.000.000/0001-00" /></div>
       <div class="form-group"><label>Telefone</label><input id="cli-tel" placeholder="(48) 99999-9999" type="tel" /></div>
     </div>
-    <div class="form-group"><label>E-mail</label><input id="cli-email" type="email" placeholder="contato@empresa.com" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Insc. Estadual <span style="color:var(--muted);font-size:.65rem;text-transform:none;">(opcional)</span></label><input id="cli-ie" placeholder="Isento ou nº" /></div>
+      <div class="form-group"><label>E-mail</label><input id="cli-email" type="email" placeholder="contato@empresa.com" /></div>
+    </div>
     <div class="form-group"><label>Endereço</label><input id="cli-end" placeholder="Rua, nº, cidade - UF" /></div>
     <div class="form-group"><label>Observações</label><textarea id="cli-obs" placeholder="Notas sobre o cliente..."></textarea></div>
     <div class="flex-end">
@@ -591,6 +646,76 @@
 <div id="toast"></div>
 
 <script>
+// ═══════════════════════════════════════
+//  USUÁRIOS / LOGIN
+// ═══════════════════════════════════════
+const USUARIOS = [
+  { usuario: 'admin',   senha: 'sg2024admin', role: 'admin',    nome: 'Administrador' },
+  { usuario: 'vendas',  senha: 'sg2024venda', role: 'vendedor', nome: 'Vendedor'      },
+];
+
+let usuarioAtual = null;
+
+function fazerLogin() {
+  const u = document.getElementById('login-user').value.trim().toLowerCase();
+  const s = document.getElementById('login-pass').value;
+  const found = USUARIOS.find(x => x.usuario === u && x.senha === s);
+  if (!found) {
+    document.getElementById('login-error').textContent = 'Usuário ou senha incorretos.';
+    document.getElementById('login-pass').value = '';
+    return;
+  }
+  usuarioAtual = found;
+  localStorage.setItem('sg_session', JSON.stringify({ usuario: found.usuario, role: found.role, nome: found.nome }));
+  document.getElementById('login-modal').style.display = 'none';
+  document.getElementById('login-error').textContent = '';
+  aplicarPermissoes();
+  iniciarApp();
+}
+
+function fazerLogout() {
+  if (!confirm('Deseja sair?')) return;
+  usuarioAtual = null;
+  localStorage.removeItem('sg_session');
+  location.reload();
+}
+
+function aplicarPermissoes() {
+  // Update header badge
+  document.getElementById('user-avatar').textContent = usuarioAtual.nome.charAt(0).toUpperCase();
+  document.getElementById('user-label').textContent = usuarioAtual.nome;
+
+  // Show/hide admin-only elements
+  const isAdmin = usuarioAtual.role === 'admin';
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+}
+
+function iniciarApp() {
+  // Show firebase setup or go straight in
+  const saved = localStorage.getItem('fb_config');
+  if (saved) {
+    try {
+      const cfg = JSON.parse(saved);
+      document.getElementById('cfg-apiKey').value = cfg.apiKey||'';
+      document.getElementById('cfg-authDomain').value = cfg.authDomain||'';
+      document.getElementById('cfg-projectId').value = cfg.projectId||'';
+      document.getElementById('cfg-appId').value = cfg.appId||'';
+      conectarFirebase(cfg);
+    } catch(e) {
+      document.getElementById('setup-modal').style.display = 'flex';
+    }
+  } else {
+    // Pre-fill known config
+    document.getElementById('cfg-apiKey').value = 'AIzaSyDyQWt_D950AoJFRCQBFyspG34ti0bWXro';
+    document.getElementById('cfg-authDomain').value = 'banco-b2b-sg.firebaseapp.com';
+    document.getElementById('cfg-projectId').value = 'banco-b2b-sg';
+    document.getElementById('cfg-appId').value = '1:979394861028:web:650b17010d3ed44db219f1';
+    document.getElementById('setup-modal').style.display = 'flex';
+  }
+}
+
 // ═══════════════════════════════════════
 //  FIREBASE / STORAGE
 // ═══════════════════════════════════════
@@ -914,10 +1039,10 @@ function renderListaProdutos() {
         <div class="sub">${p.sku ? p.sku + ' · ' : ''}${p.categoria||'Sem categoria'} · ${p.unidade||'UN'}</div>
       </div>
       <span class="badge badge-white mono">${fmtPreco(p.preco)}</span>
-      <div class="actions">
+      ${usuarioAtual?.role === 'admin' ? `<div class="actions">
         <button class="btn-icon" onclick="editarProduto('${p.id}');event.stopPropagation()">✏️</button>
         <button class="btn-icon" onclick="excluirProduto('${p.id}');event.stopPropagation()">🗑</button>
-      </div>
+      </div>` : ''}
     </div>`).join('');
 }
 
@@ -943,6 +1068,7 @@ function editarProduto(id) {
 }
 
 async function salvarProduto() {
+  if (usuarioAtual?.role !== 'admin') { toast('Sem permissão'); return; }
   const nome = document.getElementById('prod-nome').value.trim();
   const preco = parseFloat(document.getElementById('prod-preco').value);
   if (!nome) { toast('Informe o nome do produto'); return; }
@@ -957,6 +1083,7 @@ async function salvarProduto() {
 }
 
 async function excluirProduto(id) {
+  if (usuarioAtual?.role !== 'admin') { toast('Sem permissão'); return; }
   if (!confirm('Excluir este produto?')) return;
   await dbDelete('produtos', id);
   produtos = produtos.filter(x => x.id !== id);
@@ -1086,6 +1213,7 @@ function editarVendedor(id) {
 }
 
 async function salvarVendedor() {
+  if (usuarioAtual?.role !== 'admin') { toast('Sem permissão'); return; }
   const nome = document.getElementById('vend-nome').value.trim();
   if (!nome) { toast('Informe o nome do vendedor'); return; }
   const data = { nome, tel: document.getElementById('vend-tel').value.trim() };
@@ -1099,6 +1227,7 @@ async function salvarVendedor() {
 }
 
 async function excluirVendedor(id) {
+  if (usuarioAtual?.role !== 'admin') { toast('Sem permissão'); return; }
   if (!confirm('Excluir este vendedor?')) return;
   await dbDelete('vendedores', id);
   vendedores = vendedores.filter(x => x.id !== id);
@@ -1130,7 +1259,7 @@ function renderListaClientes() {
     <div class="list-item">
       <div class="info">
         <div class="name">${c.nome}</div>
-        <div class="sub">${c.doc||''}${c.doc&&c.tel?' · ':''}${c.tel||''}</div>
+        <div class="sub">${c.doc||''}${c.ie ? ' · IE: '+c.ie : ''}${(c.doc||c.ie)&&c.tel?' · ':''}${c.tel||''}</div>
       </div>
       <div class="actions">
         <button class="btn-icon" onclick="editarCliente('${c.id}');event.stopPropagation()">✏️</button>
@@ -1146,6 +1275,7 @@ function editarCliente(id) {
   document.getElementById('cli-id').value = c.id;
   document.getElementById('cli-nome').value = c.nome||'';
   document.getElementById('cli-doc').value = c.doc||'';
+  document.getElementById('cli-ie').value = c.ie||'';
   document.getElementById('cli-tel').value = c.tel||'';
   document.getElementById('cli-email').value = c.email||'';
   document.getElementById('cli-end').value = c.end||'';
@@ -1156,7 +1286,7 @@ function editarCliente(id) {
 async function salvarCliente() {
   const nome = document.getElementById('cli-nome').value.trim();
   if (!nome) { toast('Informe o nome do cliente'); return; }
-  const data = { nome, doc: document.getElementById('cli-doc').value.trim(), tel: document.getElementById('cli-tel').value.trim(), email: document.getElementById('cli-email').value.trim(), end: document.getElementById('cli-end').value.trim(), obs: document.getElementById('cli-obs').value.trim() };
+  const data = { nome, doc: document.getElementById('cli-doc').value.trim(), ie: document.getElementById('cli-ie').value.trim(), tel: document.getElementById('cli-tel').value.trim(), email: document.getElementById('cli-email').value.trim(), end: document.getElementById('cli-end').value.trim(), obs: document.getElementById('cli-obs').value.trim() };
   const id = document.getElementById('cli-id').value;
   if (id) { await dbUpdate('clientes', id, data); toast('Cliente atualizado'); }
   else { await dbAdd('clientes', data); toast('Cliente salvo'); }
@@ -1235,6 +1365,7 @@ function abrirPedidoDet(id) {
 }
 
 async function excluirPedidoAtual() {
+  if (usuarioAtual?.role !== 'admin') { toast('Sem permissão para excluir pedidos'); return; }
   if (!pedidoDetAtual || !confirm('Excluir este pedido?')) return;
   await dbDelete('pedidos', pedidoDetAtual.id);
   pedidos = pedidos.filter(x => x.id !== pedidoDetAtual.id);
@@ -1312,7 +1443,7 @@ function abrirDrawer(id) {
   if (id === 'drawer-cliente') {
     document.getElementById('drawer-cliente-title').textContent = 'Novo Cliente';
     document.getElementById('cli-id').value = '';
-    ['cli-nome','cli-doc','cli-tel','cli-email','cli-end','cli-obs'].forEach(f => document.getElementById(f).value='');
+    ['cli-nome','cli-doc','cli-ie','cli-tel','cli-email','cli-end','cli-obs'].forEach(f => document.getElementById(f).value='');
   }
   document.getElementById(id).classList.add('open');
 }
@@ -1351,21 +1482,19 @@ function fmtPreco(v) {
 // ═══════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════
-const saved = localStorage.getItem('fb_config');
-if (saved) {
+// ── BOOT: check session ──
+const savedSession = localStorage.getItem('sg_session');
+if (savedSession) {
   try {
-    const cfg = JSON.parse(saved);
-    document.getElementById('cfg-apiKey').value = cfg.apiKey||'';
-    document.getElementById('cfg-authDomain').value = cfg.authDomain||'';
-    document.getElementById('cfg-projectId').value = cfg.projectId||'';
-    document.getElementById('cfg-appId').value = cfg.appId||'';
-    conectarFirebase(cfg);
-  } catch(e) {}
+    usuarioAtual = JSON.parse(savedSession);
+    document.getElementById('login-modal').style.display = 'none';
+    aplicarPermissoes();
+    iniciarApp();
+  } catch(e) {
+    document.getElementById('login-modal').style.display = 'flex';
+  }
 } else {
-  document.getElementById('cfg-apiKey').value = 'AIzaSyDyQWt_D950AoJFRCQBFyspG34ti0bWXro';
-  document.getElementById('cfg-authDomain').value = 'banco-b2b-sg.firebaseapp.com';
-  document.getElementById('cfg-projectId').value = 'banco-b2b-sg';
-  document.getElementById('cfg-appId').value = '1:979394861028:web:650b17010d3ed44db219f1';
+  document.getElementById('login-modal').style.display = 'flex';
 }
 </script>
 </body>
