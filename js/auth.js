@@ -101,35 +101,4 @@ async function iniciarApp() {
 // ══════════════════════════════════════
 async function seedVendedores() {
   vendedores = await dbGetAll('vendedores');
-  const iniciais = [
-    { nome:'Lucas',    role:'admin',    senha:'lucas123',    tel:'' },
-    { nome:'Gustavo',  role:'admin',    senha:'gustavo123',  tel:'' },
-    { nome:'Taynara',  role:'vendedor', senha:'taynara123',  tel:'' },
-    { nome:'Michelle', role:'vendedor', senha:'michelle123', tel:'' },
-    { nome:'Fabio',    role:'vendedor', senha:'fabio123',    tel:'' },
-    { nome:'Vick',     role:'vendedor', senha:'vick123',     tel:'' },
-  ];
-  // Remove duplicatas (mantém mais antigo por nome)
-  const vistos = {};
-  let changed = false;
-  for (const v of [...vendedores].sort((a,b)=>(a._ts||0)-(b._ts||0))) {
-    const k = v.nome.toLowerCase();
-    if (vistos[k]) { await dbDelete('vendedores', v.id); changed = true; }
-    else vistos[k] = v;
-  }
-  if (changed) vendedores = await dbGetAll('vendedores');
-  // Cria faltantes / preenche senha+role
-  changed = false;
-  for (const u of iniciais) {
-    const existe = vendedores.find(v => v.nome.toLowerCase() === u.nome.toLowerCase());
-    if (!existe) { await dbAdd('vendedores', u); changed = true; }
-    else if (!existe.senha || !existe.role) {
-      const patch = {};
-      if (!existe.senha) patch.senha = u.senha;
-      if (!existe.role)  patch.role  = u.role;
-      await dbUpdate('vendedores', existe.id, patch);
-      changed = true;
-    }
-  }
-  if (changed) vendedores = await dbGetAll('vendedores');
 }
