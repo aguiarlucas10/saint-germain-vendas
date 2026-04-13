@@ -717,10 +717,12 @@ async function editarPedidoAtual() {
   if (!podeEditar) { toast('Sem permissão para editar este pedido'); return; }
   if (!confirm('Editar este pedido? Ele será removido do histórico e os produtos voltarão ao carrinho.')) return;
 
+  // Recarrega produtos para estoque atualizado
+  produtos = await dbGetAll('produtos');
   // Restore stock
   for (const item of p.itens||[]) {
     const prod = produtos.find(x => x.id === item.prodId);
-    if (prod?.estoque != null) {
+    if (prod&&prod.estoque != null) {
       const restored = Number(prod.estoque) + item.qty;
       await dbUpdate('produtos', item.prodId, { estoque: restored });
       prod.estoque = restored;
@@ -769,27 +771,32 @@ async function editarPedidoAtual() {
 
 async function excluirPedidoAtual() {
   if(!pedidoDetAtual||!confirm('Excluir pedido?'))return;
+  // Recarrega produtos do Firebase para ter estoque atualizado
+  produtos = await dbGetAll('produtos');
   // Restaura estoque
   for(const item of pedidoDetAtual.itens||[]) {
     const p=produtos.find(x=>x.id===item.prodId);
-    if(p?.estoque!=null) {
-      await dbUpdate('produtos',item.prodId,{estoque:Number(p.estoque)+item.qty});
-      p.estoque=Number(p.estoque)+item.qty;
+    if(p&&p.estoque!=null) {
+      const novoEstoque = Number(p.estoque)+item.qty;
+      await dbUpdate('produtos',item.prodId,{estoque:novoEstoque});
+      p.estoque=novoEstoque;
     }
   }
   await dbDelete('pedidos',pedidoDetAtual.id);
   pedidos=pedidos.filter(x=>x.id!==pedidoDetAtual.id);
   fecharDrawer('drawer-pedido-det');
-  renderHistorico(); atualizarBadgeDia();
-  toast('Pedido excluído');
+  renderHistorico(); renderProdutos(); renderPicker(); atualizarBadgeDia();
+  toast('Pedido excluído — estoque restaurado');
 }
 async function editarQtyPedido(pedidoId,itemIdx,delta) {
   const p=pedidos.find(x=>x.id===pedidoId); if(!p)return;
   const item=p.itens[itemIdx]; if(!item)return;
   const nova=Math.max(1,item.qty+delta);
-  // Ajusta estoque
+  // Recarrega produtos para estoque atualizado
+  produtos = await dbGetAll('produtos');
+  // Ajusta estoque (delta negativo = devolvendo, aumenta estoque)
   const prod=produtos.find(x=>x.id===item.prodId);
-  if(prod?.estoque!=null) {
+  if(prod&&prod.estoque!=null) {
     const diff=nova-item.qty;
     const novoEst=Math.max(0,Number(prod.estoque)-diff);
     await dbUpdate('produtos',prod.id,{estoque:novoEst});
