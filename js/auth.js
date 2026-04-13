@@ -1,11 +1,30 @@
 // ══════════════════════════════════════
 //  AUTH / BOOT
 // ══════════════════════════════════════
-function fazerLogin() {
+async function fazerLogin() {
   const u = document.getElementById('login-user').value.trim().toLowerCase();
   const s = document.getElementById('login-pass').value;
   if (!u) { document.getElementById('login-error').textContent = 'Informe o usuário.'; return; }
-  const found = USUARIOS.find(x => x.usuario === u && x.senha === s);
+
+  // 1) Tenta lista local (funciona offline)
+  let found = USUARIOS.find(x => x.usuario === u && x.senha === s);
+
+  // 2) Se não achou, conecta Firebase e busca nos vendedores (usuarios criados pelo sistema)
+  if (!found) {
+    try {
+      if (!useFirebase) {
+        const saved = localStorage.getItem('fb_config');
+        const cfg = saved ? JSON.parse(saved) : FB_CFG;
+        if (!firebase.apps.length) firebase.initializeApp(cfg);
+        db = firebase.firestore();
+        useFirebase = true;
+      }
+      const vends = await dbGetAll('vendedores');
+      const v = vends.find(x => x.nome.toLowerCase() === u && x.senha === s);
+      if (v) found = { usuario: v.nome.toLowerCase(), senha: v.senha, role: v.role || 'vendedor', nome: v.nome };
+    } catch(e) { /* ignora se Firebase não conectou */ }
+  }
+
   if (!found) {
     document.getElementById('login-error').textContent = 'Usuário ou senha incorretos.';
     document.getElementById('login-pass').value = '';
