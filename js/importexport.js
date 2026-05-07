@@ -101,6 +101,42 @@ function exportarCSV() {
   a.download='pedidos_sg_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.csv';
   a.click(); toast('CSV exportado!');
 }
+function exportarItensCSV() {
+  if(!pedidos.length){toast('Nenhum pedido');return;}
+  const linhas=[['Data','Hora','Pedido ID','Cliente','Vendedor','SKU','Produto','Categoria','Qty','Preco Un','Subtotal','Brinde','Pagamento','NF','Obs Pedido']];
+  let totalLinhas = 0;
+  pedidos.forEach(p=>{
+    const dt = p.data ? new Date(p.data) : null;
+    const dataStr = dt ? dt.toLocaleDateString('pt-BR') : '';
+    const horaStr = dt ? dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+    (p.itens||[]).forEach(i=>{
+      const prod = produtos.find(x => x.id === i.prodId);
+      const categoria = prod?.categoria || '';
+      const isBrinde = i.brinde || i.preco === 0;
+      linhas.push([
+        dataStr, horaStr, p.id||'',
+        p.clienteNome||'', p.vendedorNome||'',
+        i.sku||'', i.nome||'', categoria,
+        i.qty||0,
+        isBrinde ? '0.00' : Number(i.preco||0).toFixed(2),
+        isBrinde ? '0.00' : Number(i.subtotal||i.preco*i.qty||0).toFixed(2),
+        isBrinde ? 'Sim' : 'Nao',
+        p.pagamento||'',
+        p.emitirNF==='sim' ? 'Sim' : 'Nao',
+        p.obs||''
+      ]);
+      totalLinhas++;
+    });
+  });
+  if(!totalLinhas){toast('Nenhum item para exportar');return;}
+  const csv=linhas.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+  a.download='itens_vendidos_sg_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.csv';
+  a.click();
+  toast(totalLinhas+' itens exportados!');
+}
+
 function exportarJSON() {
   if(!pedidos.length){toast('Nenhum pedido');return;}
   const blob=new Blob([JSON.stringify({exportadoEm:new Date().toISOString(),app:'Saint Germain B2B',pedidos},null,2)],{type:'application/json'});
