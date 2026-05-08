@@ -96,12 +96,25 @@
         <button class="btn btn-o btn-sm" onclick="abrirNovoCliente()">+ Novo cliente</button>
       </div>
       <div class="card">
-        <div class="sort-bar">
-          <button class="sort-btn active" id="sort-nome" onclick="setSort('nome')">Nome ↑</button>
-          <button class="sort-btn" id="sort-sku" onclick="setSort('sku')">SKU</button>
-          <button class="sort-btn" id="sort-preco" onclick="setSort('preco')">Preço</button>
-          <button class="sort-btn" id="sort-categoria" onclick="setSort('categoria')">Categoria</button>
-          <button class="sort-btn" id="sort-estoque" onclick="setSort('estoque')">Estoque</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+          <div class="sort-bar" style="margin-bottom:0">
+            <button class="sort-btn active" id="sort-nome" onclick="setSort('nome')">Nome ↑</button>
+            <button class="sort-btn" id="sort-sku" onclick="setSort('sku')">SKU</button>
+            <button class="sort-btn" id="sort-preco" onclick="setSort('preco')">Preço</button>
+            <button class="sort-btn" id="sort-categoria" onclick="setSort('categoria')">Categoria</button>
+            <button class="sort-btn" id="sort-estoque" onclick="setSort('estoque')">Estoque</button>
+          </div>
+          <button id="btn-modo-sku" class="btn btn-o btn-sm admin-only" onclick="toggleModoSKU()">⌨ Modo SKU</button>
+        </div>
+        <div id="sku-reader" style="display:none;background:var(--s2);border:1px solid var(--green);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:.7rem;color:var(--green);letter-spacing:.06em;text-transform:uppercase">⌨ Leitura por SKU</span>
+            <span style="font-size:.7rem;color:var(--muted);margin-left:auto">Digite/escaneie e pressione Enter</span>
+          </div>
+          <input id="sku-input" placeholder="Digite ou escaneie o SKU..." autocomplete="off"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();lerSKU(this.value);}"
+            style="font-family:var(--mono);font-size:1rem;letter-spacing:.04em"/>
+          <div id="sku-feedback" style="font-size:.75rem;margin-top:6px;min-height:16px"></div>
         </div>
         <div class="search-wrap">
           <span class="search-icon">🔍</span>

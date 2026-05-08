@@ -1,4 +1,51 @@
 // ══════════════════════════════════════
+//  MODO SKU (leitura/scanner)
+// ══════════════════════════════════════
+let modoSKUAtivo = false;
+function toggleModoSKU() {
+  if (usuarioAtual?.role !== 'admin') { toast('Apenas admins'); return; }
+  modoSKUAtivo = !modoSKUAtivo;
+  const reader = document.getElementById('sku-reader');
+  const btn = document.getElementById('btn-modo-sku');
+  if (reader) reader.style.display = modoSKUAtivo ? 'block' : 'none';
+  if (btn) {
+    btn.classList.toggle('btn-p', modoSKUAtivo);
+    btn.classList.toggle('btn-o', !modoSKUAtivo);
+    btn.textContent = modoSKUAtivo ? '✓ Modo SKU' : '⌨ Modo SKU';
+  }
+  if (modoSKUAtivo) {
+    setTimeout(() => document.getElementById('sku-input')?.focus(), 100);
+  } else {
+    const fb = document.getElementById('sku-feedback'); if (fb) fb.innerHTML = '';
+  }
+}
+function lerSKU(valor) {
+  const sku = (valor||'').trim();
+  const inp = document.getElementById('sku-input');
+  const fb  = document.getElementById('sku-feedback');
+  if (!sku) return;
+  // Busca case-insensitive
+  const p = produtos.find(x => (x.sku||'').toLowerCase() === sku.toLowerCase());
+  if (!p) {
+    if (fb) fb.innerHTML = '<span style="color:var(--red)">✗ SKU não encontrado: ' + sku + '</span>';
+    if (inp) { inp.value = ''; inp.focus(); }
+    return;
+  }
+  // Verifica estoque
+  const qtyAtual = cart[p.id]?.qty || 0;
+  if (p.estoque != null && qtyAtual + 1 > Number(p.estoque)) {
+    if (fb) fb.innerHTML = '<span style="color:var(--red)">⚠️ Sem estoque (' + p.estoque + ' un.) — ' + p.nome + '</span>';
+    if (inp) { inp.value = ''; inp.focus(); }
+    return;
+  }
+  // Adiciona +1 ao carrinho
+  addCart(p.id, 1);
+  const novaQty = cart[p.id]?.qty || 0;
+  if (fb) fb.innerHTML = '<span style="color:var(--green)">✓ ' + p.nome + ' — qty: ' + novaQty + ' (' + fmtPreco(p.preco) + ')</span>';
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
+// ══════════════════════════════════════
 //  PICKER
 // ══════════════════════════════════════
 function renderPicker() {
